@@ -1,0 +1,10 @@
+# ignore the current folders
+data
+models
+.vscode
+.ipynb_checkpoints
+
+# ignore the file exentions
+*.csv
+*.exe
+*.pkl

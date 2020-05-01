@@ -1,0 +1,127 @@
+---
+title: "Vesteda datacollectie Google Trends (complete)"
+author: "Marieke Schulte"
+date: "3/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Opstarten
+```{r}
+setwd("~/OneDrive - Digital Power BV/Vesteda/GT_Data")
+library("data.table")
+library("reshape2")
+library("dplyr")
+library("utils")
+devtools::install_github("PMassicotte/gtrendsR", force = TRUE)
+library("gtrendsR")
+```
+
+# Periode instellen
+```{r}
+StartDate <- as.Date("2014-01-01")
+EndDate <- as.Date("2019-12-31")
+DateRange = paste(StartDate, EndDate)
+```
+
+# Basis: input 
+```{r}
+Buurtnamen <- fread("Buurtnamen.csv")
+#Bijvoegen <- c('', ' buurt', ' Rotterdam')
+#Buurt.data <- as.data.frame(Buurt, stringsAsFactors=FALSE)
+#Bijvoegen.data <- as.data.frame(Bijvoegen)
+
+#fwrite((as.data.table(CJ(Buurt, Bijvoegen, sorted = FALSE)[, .( Zoekterm = paste(Buurt, Bijvoegen, sep="")), .(Buurt = Buurt)])), "Input.data.csv")
+#Input.data <- fread("Input.data.csv")
+
+# Vector met alle categorieën
+Categories <- c("18", "23", "29", "44", "65", "276", "569")
+# Vector met zoektermen
+Zoektermen <- Buurtnamen$buurtnaam
+Zoektermen <- Zoektermen[1:20] # om te testen
+```
+
+# Functie 1: Input data inladen in GTrendsR functie - WEB 
+```{r}
+extractGoogleWeb <- function(Zoektermen, Categories, DateRange){
+  Interrupt <- FALSE
+    for (Zoekterm in Zoektermen) {
+      res = NULL
+      print(Zoekterm)
+      for (Category in Categories) {
+        
+        temp_1 <- gtrends(Zoekterm, time = DateRange, category = Category, onlyInterest = TRUE, gprop = "web")
+        temp_2 <- data.frame(date=temp_1$interest_over_time$date, 
+                             keyword=temp_1$interest_over_time$keyword, 
+                             hits=temp_1$interest_over_time$hits, 
+                             category=temp_1$interest_over_time$category)
+        Sys.sleep(sample(1:5, 1))
+        res <- rbind(res, temp_2)
+      }
+     xfilepath = paste("webdata_",Zoekterm,".csv",sep="")
+     write.csv(res, file = xfilepath, row.names=FALSE)
+    }
+}
+extractGoogleWeb(Zoektermen, Categories, DateRange)
+```
+
+# Functie 2: Input data inladen in GTrendsR functie - IMAGES
+```{r}
+extractGoogleImages <- function(Zoektermen, Categories, DateRange){
+  Interrupt <- FALSE
+    for (Zoekterm in Zoektermen) {
+      res = NULL
+      print(Zoekterm)
+      for (Category in Categories) {
+        
+        temp_1 <- gtrends(Zoekterm, time = DateRange, category = Category, onlyInterest = TRUE, gprop = "images")
+        temp_2 <- data.frame(date=temp_1$interest_over_time$date, 
+                             keyword=temp_1$interest_over_time$keyword, 
+                             hits=temp_1$interest_over_time$hits, 
+                             category=temp_1$interest_over_time$category)
+        Sys.sleep(sample(1:5, 1))
+        res <- rbind(res, temp_2)
+      }
+     xfilepath = paste("imagedata_",Zoekterm,".csv",sep="")
+     write.csv(res, file = xfilepath, row.names=FALSE)
+    }
+}
+extractGoogleImages(Zoektermen, Categories, DateRange)
+```
+
+# Bestanden combineren en exporteren complete datasets - WEB
+```{r}
+webfiles <- list.files(pattern="^webdata_.*\\.csv$", all.files = FALSE, full.names = FALSE)
+webresult <- lapply(webfiles, fread, blank.lines.skip=TRUE)
+names(webresult) <- webfiles
+webresult <- rbindlist(webresult, use.names = TRUE, idcol = NULL)
+
+webresult$hits <- as.numeric(webresult$hits)
+webresult$date <- as.Date(webresult$date)
+webresult$Jaar <- format(webresult$date, "%Y")
+
+GT_webdata <- webresult[, (sum(hits)), by = .(Jaar, keyword, category)]
+colnames(GT_webdata) <- c("Jaar", "Buurt", "Categorie", "Zoekopdrachten_web")
+
+fwrite(GT_webdata, file = "GT_webdata.csv")
+```
+
+# Bestanden combineren en exporteren complete datasets - IMAGES
+```{r}
+imagefiles <- list.files(pattern="^imagedata_.*\\.csv$", all.files = FALSE, full.names = FALSE)
+imageresult <- lapply(imagefiles, fread, blank.lines.skip=TRUE)
+names(imageresult) <- imagefiles
+imageresult <- rbindlist(imageresult, use.names = TRUE, idcol = NULL)
+
+imageresult$hits <- as.numeric(imageresult$hits)
+imageresult$date <- as.Date(imageresult$date)
+imageresult$Jaar <- format(imageresult$date, "%Y")
+
+GT_imagedata <- imageresult[, (sum(hits)), by = .(Jaar, keyword, category)]
+colnames(GT_imagedata) <- c("Jaar", "Buurt", "Categorie", "Zoekopdrachten_image")
+
+fwrite(GT_imagedata, file = "GT_imagedata.csv")
+```
